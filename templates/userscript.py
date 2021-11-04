@@ -10,7 +10,7 @@ script = """\
 // ==/UserScript==
 
 
-const STORAGE_KEY = "CognitoIdentityServiceProvider.68majga0ulte4tt8tmpismer85.%(email)s.accessToken";
+const STORAGE_KEY = "CognitoIdentityServiceProvider.68majga0ulte4tt8tmpismer85.%(email)s.idToken";
 const URL = "http://localhost:%(port)s/token";
 const INTERVAL = %(interval)s * 1000;
 

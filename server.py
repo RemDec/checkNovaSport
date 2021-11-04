@@ -6,7 +6,8 @@ import logging
 import argparse
 import json
 
-desc = """Local HTTP server to handle authentication tokens and userscript\n
+desc = """HTTP Server
+Local HTTP server to handle authentication tokens and userscript
 To be run on a machine the userscript retrieving the authentication token from the browser can query.
 """
 

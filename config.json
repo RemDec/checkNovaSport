@@ -1,0 +1,29 @@
+{
+  "logfile": "novasport.log",
+  "user_agents": [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36 OPR/80.0.4170.72",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1"
+  ],
+  "ns_api": "gkblmwsbmncznpljuv6g5gelu4.appsync-api.eu-west-1.amazonaws.com",
+  "param_queries_default": {
+    "notification": true,
+    "autobooking": false,
+    "university": "ULB Sports",
+    "campus": "Programme Solbosch",
+    "category": "Tous les sports"
+  },
+  "param_queries": [
+    {
+      "sport": "Tennis",
+      "sessions": ["Thursday/18:00:00"],
+      "autobooking": true
+    },
+    {
+      "sport": "Volleyball",
+      "sessions": ["Thursday/21:30:00|22:30:00"],
+      "autobooking": true
+    }
+  ]
+}
