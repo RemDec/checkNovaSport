@@ -14,7 +14,7 @@ GetNextClassDates = r"""
 GetCampusSportClasses = r"""
 {
   "operationName": "GetCampusSportClasses",
-  "query": "query GetCampusSportClasses($university: String!, $campus: String!, $category: String!, $sport: String!, $date: AWSDate!) {\n  getCampusSportClasses(university: $university, campus: $campus, category: $category, sport: $sport, date: $date) {\n    classId\n    date\n
+  "query": "query GetCampusSportClasses($university: String!, $campus: String!, $category: String!, $sport: String!, $date: AWSDate!) {\n  getCampusSportClasses(university: $university, campus: $campus, category: $category, sport: $sport, date: $date) {\n    classId\n    date\n    startTime\n    endTime\n    name\n    maxParticipants\n    participantsCount\n    isBooked\n    sportName\n    status\n    __typename\n  }\n}\n",
   "variables": {
     "campus": "%(campus)s",
     "category": "%(category)s",
@@ -22,8 +22,7 @@ GetCampusSportClasses = r"""
     "sport": "%(sport)s",
     "university": "%(university)s"
   }
-}
-"""
+}"""
 
 BookCampusSportClass = r"""
 {

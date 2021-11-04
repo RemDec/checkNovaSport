@@ -24,6 +24,11 @@
       "sport": "Volleyball",
       "sessions": ["Thursday/21:30:00|22:30:00"],
       "autobooking": true
+    },
+    {
+      "sport": "Boxe",
+      "sessions": ["Monday/*"],
+      "autobooking": true
     }
   ]
 }

@@ -55,6 +55,27 @@ def date_to_weekday(d):
     date_obj = datetime.date(*(int(s) for s in d.split('-')))
     return date_obj.strftime("%A")
 
+def matching_dates_weekday(availables, query_sessions):
+    matches = {}
+    for av_date in availables:
+        for session in query_sessions:
+            if session.split('/')[0] == date_to_weekday(av_date):
+                matches[av_date] = session
+    return matches
+
+def matching_sessions_at_date(availables, query_sessions):
+    matches = {}
+    valid_hours = query_sessions.split('/')[1].split('|')
+    is_valid_hour = lambda hour: ('*' in valid_hours) or (hour in valid_hours)
+    for av_session in availables:
+        start_time = av_session['startTime']
+        if (av_session['isBooked'] or av_session['status'] != 'active' or
+            av_session['participantsCount'] == av_session['maxParticipants'] or
+            start_time in matches):
+            continue
+        if is_valid_hour(start_time):
+            matches[start_time] = av_session['classId']
+    return matches
 
 def query_from_tpl(query_tpl, params, defaults=True):
     if defaults:
@@ -66,20 +87,34 @@ def get_sessions_dates(sport, params={}):
     params['sport'] = sport
     q = query_from_tpl(queries.GetNextClassDates, params)
     resp = requests.post(url_post_to(), data=q, headers=form_headers())
-    return json.loads(resp.text)
+    try:
+        resp.raise_for_status()
+        return resp.json()['data']['getNextClassDates']
+    except requests.exceptions.HTTPError as e:
+        print(f"Error GETting the session dates for {sport} :", e)
+        return []
 
 def get_sessions_at_date(sport, session_date, params={}):
     params['sport'] = sport
     params['date'] = session_date
     q = query_from_tpl(queries.GetCampusSportClasses, params)
     resp = requests.post(url_post_to(), data=q, headers=form_headers())
-    return json.loads(resp.text)
+    try:
+        resp.raise_for_status()
+        return resp.json()['data']['getCampusSportClasses']
+    except requests.exceptions.HTTPError as e:
+        print(f"Error GETting the possible sessions for {sport} the {session_date} :", e)
+        return []
 
 def book_session(session_id):
     params = {'classId': session_id}
     q = query_from_tpl(queries.BookCampusSportClass, params, defaults=False)
     resp = requests.post(url_post_to(), data=q, headers=form_headers())
-    return json.loads(resp.text)
+    try:
+        resp.raise_for_status()
+        return resp.json()['data']['bookCampusSportClass']
+    except requests.exceptions.HTTPError as e:
+        print(f"Error booking with the id {session_id} :", e)
 
 def unbook_session(session_id):
     params = {'classId': session_id}
@@ -87,4 +122,22 @@ def unbook_session(session_id):
     resp = requests.post(url_post_to(), data=q, headers=form_headers())
     return json.loads(resp.text)
 
+def iteration_check(sport_queries):
+    for sport_query in sport_queries:
+        sport = sport_query['sport']
+        sessions_dates = get_sessions_dates(sport)
+        matches = matching_dates_weekday(sessions_dates, sport_query['sessions'])
+        print("Dates for which we would check sessions :", matches)
+        for matching_date, query_sessions in matches.items():
+            sessions_at_date = get_sessions_at_date(sport, matching_date)
+            print(f"Possible sessions the {matching_date} : ", sessions_at_date)
+            sessions_matches = matching_sessions_at_date(sessions_at_date, query_sessions)
+            print(f"Selected sessions the {matching_date} : ", sessions_matches)
+            print("  |")
+            for session_hour, session_id in sessions_matches.items():
+                if sport_query['autobooking']:
+                    result_booking = book_session(session_id)
+                    print(f"Result for booking at {session_hour} :", result_booking)
+        print("----------")
 
+iteration_check(config['param_queries'])
