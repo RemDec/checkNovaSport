@@ -16,17 +16,6 @@ Will query NovaSport's API to retrieve sport sessions and do some actions based 
 what behavior is defined in the configuration file for given sessions.
 """
 
-parser = argparse.ArgumentParser(description=desc)
-parser.add_argument("-c", "--config", default="config.json", help="A JSON file containing config and sport sessions parameters")
-args_cli = parser.parse_args()
-
-config = {}
-try:
-    config = json.loads(Path(args_cli.config).read_text())
-except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
-    print(f"An error was raised when trying to read config file {args_cli.config} :", e)
-    sys.exit(1)
-
 
 def get_token(port=8080):
     url = f"http://localhost:{port}/token"
@@ -127,17 +116,33 @@ def iteration_check(sport_queries):
         sport = sport_query['sport']
         sessions_dates = get_sessions_dates(sport)
         matches = matching_dates_weekday(sessions_dates, sport_query['sessions'])
-        print("Dates for which we would check sessions :", matches)
+        print(f" [{sport}] Dates for which we would check sessions :", matches)
         for matching_date, query_sessions in matches.items():
             sessions_at_date = get_sessions_at_date(sport, matching_date)
-            print(f"Possible sessions the {matching_date} : ", sessions_at_date)
+            print(f" | Possible sessions the {matching_date} : ", sessions_at_date)
             sessions_matches = matching_sessions_at_date(sessions_at_date, query_sessions)
-            print(f"Selected sessions the {matching_date} : ", sessions_matches)
-            print("  |")
+            print(f" | --> Selected sessions the {matching_date} : ", sessions_matches)
             for session_hour, session_id in sessions_matches.items():
                 if sport_query['autobooking']:
                     result_booking = book_session(session_id)
-                    print(f"Result for booking at {session_hour} :", result_booking)
+                    print(f" |   +--> Result for booking at {session_hour} :", result_booking)
         print("----------")
 
-iteration_check(config['param_queries'])
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument("-c", "--config", default="config.json", help="A JSON file containing config and sport sessions parameters")
+    args_cli = parser.parse_args()
+
+    config = {}
+    try:
+        config = json.loads(Path(args_cli.config).read_text())
+    except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
+        print(f"An error was raised when trying to read config file {args_cli.config} :", e)
+        sys.exit(1)
+    logging.basicConfig(filename=config["logfile"], filemode='w', level=logging.DEBUG)
+    cli_logger = logging.getLogger('cli')
+    cli_logger.setLevel(logging.INFO)
+    cli_logger.addHandler(logging.StreamHandler(sys.stdout))
+
+    iteration_check(config['param_queries'])
