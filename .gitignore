@@ -1,6 +1,7 @@
 *.swp
 NovaSportAutoCheck.user.js
 last_token
+novasport.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

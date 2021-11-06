@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+from time import sleep
+from random import randint
 import requests
 import argparse
 import datetime
@@ -16,6 +18,37 @@ Will query NovaSport's API to retrieve sport sessions and do some actions based 
 what behavior is defined in the configuration file for given sessions.
 """
 
+NEWLINE = '\n'
+MIN_INTERVAL = 10
+
+# --- Utilities ---
+
+def setup_logging():
+    global config
+    logging.basicConfig(filename=config["logfile"], filemode='w', level=logging.DEBUG)
+    cli_logger = logging.getLogger('cli')
+    cli_logger.setLevel(logging.INFO)
+    cli_logger.addHandler(logging.StreamHandler(sys.stdout))
+
+def log_all(msg, level=logging.INFO):
+    logging.log(level, msg)
+    logging.getLogger('cli').log(level, msg)
+
+def date_to_weekday(d):
+    # date is yyyy-mm-dd, we need Wednesday, ...
+    date_obj = datetime.date(*(int(s) for s in d.split('-')))
+    return date_obj.strftime("%A")
+
+def close_to_new_hour(threshold):
+    now = datetime.datetime.now()
+    elapsed_sec = 60 * now.minute + now.second
+    time_to_wait = max(0, 3600 - elapsed_sec)
+    if (time_to_wait <= threshold):
+        return (True, time_to_wait)
+    return (False, -1)
+
+
+# --- Autocheck process ---
 
 def get_token(port=8080):
     url = f"http://localhost:{port}/token"
@@ -23,12 +56,13 @@ def get_token(port=8080):
         r = requests.get(url)
         return json.loads(r.text)['token']
     except requests.exceptions.ConnectionError as e:
-        print("Cannot retrieve token from HTTP server, check it is running", e)
+        log_all(f"Cannot retrieve token from HTTP server, check it is running : {e}", logging.ERROR)
 
 def form_headers():
+    global config, interval
     return {
         'Host': config['ns_api'],
-        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0",
+        'User-Agent': config['user_agents'][interval % len(config['user_agents'])],
         'Accept-Language': "fr,fr-FR;q=0.8",
         'Accept-Encoding': "gzip, deflate, br",
         'Content-Type': "application/json",
@@ -37,14 +71,12 @@ def form_headers():
     }
 
 def url_post_to():
+    global config
     return f"https://{config['ns_api']}/graphql"
 
-def date_to_weekday(d):
-    # date is yyyy-mm-dd, we need Wednesday, ...
-    date_obj = datetime.date(*(int(s) for s in d.split('-')))
-    return date_obj.strftime("%A")
-
 def matching_dates_weekday(availables, query_sessions):
+    # available dates are numeric 'yyyy-mm-dd' and we want to find matches (no matters the
+    # hour) with 'DayFullName/[hours]' in config, where DayFullName is like 'Wednesday'
     matches = {}
     for av_date in availables:
         for session in query_sessions:
@@ -53,6 +85,8 @@ def matching_dates_weekday(availables, query_sessions):
     return matches
 
 def matching_sessions_at_date(availables, query_sessions):
+    # available are dict for a session at a given hour and we want to find matches with
+    # hours the same day for 'DayFullName/[hours]' in config
     matches = {}
     valid_hours = query_sessions.split('/')[1].split('|')
     is_valid_hour = lambda hour: ('*' in valid_hours) or (hour in valid_hours)
@@ -67,12 +101,15 @@ def matching_sessions_at_date(availables, query_sessions):
     return matches
 
 def query_from_tpl(query_tpl, params, defaults=True):
+    # apply variables values to template queries
+    global config
     if defaults:
         for p, p_dflt_val in config['param_queries_default'].items():
             params.setdefault(p, p_dflt_val)
     return query_tpl % params
 
 def get_sessions_dates(sport, params={}):
+    # from NS retrieve all planned sessions dates (yyyy-mm-dd) of a given sport
     params['sport'] = sport
     q = query_from_tpl(queries.GetNextClassDates, params)
     resp = requests.post(url_post_to(), data=q, headers=form_headers())
@@ -80,10 +117,11 @@ def get_sessions_dates(sport, params={}):
         resp.raise_for_status()
         return resp.json()['data']['getNextClassDates']
     except requests.exceptions.HTTPError as e:
-        print(f"Error GETting the session dates for {sport} :", e)
+        log_all(f"Error GETting the session dates for {sport} : {e}", logging.ERROR)
         return []
 
 def get_sessions_at_date(sport, session_date, params={}):
+    # from NS retrieve all sessions properties (like hour) of a given sport at a given date
     params['sport'] = sport
     params['date'] = session_date
     q = query_from_tpl(queries.GetCampusSportClasses, params)
@@ -92,10 +130,11 @@ def get_sessions_at_date(sport, session_date, params={}):
         resp.raise_for_status()
         return resp.json()['data']['getCampusSportClasses']
     except requests.exceptions.HTTPError as e:
-        print(f"Error GETting the possible sessions for {sport} the {session_date} :", e)
+        log_all(f"Error GETting the possible sessions for {sport} the {session_date} : {e}", logging.ERROR)
         return []
 
 def book_session(session_id):
+    # to NS, book a session by id
     params = {'classId': session_id}
     q = query_from_tpl(queries.BookCampusSportClass, params, defaults=False)
     resp = requests.post(url_post_to(), data=q, headers=form_headers())
@@ -103,7 +142,7 @@ def book_session(session_id):
         resp.raise_for_status()
         return resp.json()['data']['bookCampusSportClass']
     except requests.exceptions.HTTPError as e:
-        print(f"Error booking with the id {session_id} :", e)
+        log_all(f"Error booking with the id {session_id} : {e}", logging.ERROR)
 
 def unbook_session(session_id):
     params = {'classId': session_id}
@@ -116,33 +155,52 @@ def iteration_check(sport_queries):
         sport = sport_query['sport']
         sessions_dates = get_sessions_dates(sport)
         matches = matching_dates_weekday(sessions_dates, sport_query['sessions'])
-        print(f" [{sport}] Dates for which we would check sessions :", matches)
+        log_all(f" [{sport}]   Dates for which we would check sessions : {matches}")
         for matching_date, query_sessions in matches.items():
             sessions_at_date = get_sessions_at_date(sport, matching_date)
-            print(f" | Possible sessions the {matching_date} : ", sessions_at_date)
+            log_all(f" | Found {len(matching_date)} possible sessions the {matching_date} matching day {query_sessions}")
+            log_all(f" | Sessions details : {NEWLINE.join(matching_date)}", logging.DEBUG)
             sessions_matches = matching_sessions_at_date(sessions_at_date, query_sessions)
-            print(f" | --> Selected sessions the {matching_date} : ", sessions_matches)
+            log_all(f" | Selected {len(sessions_matches)} sessions the {matching_date} matching hours {query_sessions}")
+            log_all(f" | Selected sessions ids : {sessions_matches}")
             for session_hour, session_id in sessions_matches.items():
                 if sport_query['autobooking']:
+                    log_all(f" | BOOKING : Prepare to book session of {sport} at {session_hour} (id {session_id})")
                     result_booking = book_session(session_id)
-                    print(f" |   +--> Result for booking at {session_hour} :", result_booking)
-        print("----------")
+                    log_all(f" | Result for booking at {session_hour} :", result_booking)
+
+
+def process():
+    global config, interval
+    max_interval = max(MIN_INTERVAL+5, config['max_interval'])
+    wait_next_hour, to_wait = close_to_new_hour(max_interval)
+    log_all(f"NEW ITERATION at {datetime.datetime.now()}")
+    if wait_next_hour:
+        log_all(f"We will wait {to_wait}s until next hour ...")
+        sleep(to_wait + 10)
+    else:
+        interval = randint(MIN_INTERVAL, max_interval)
+        log_all(f"Wait a random amount of time : {interval}")
+        sleep(interval)
+    log_all(f"LAUNCH CHECKING at {datetime.datetime.now()}")
+    iteration_check(config['param_queries'])
 
 
 if __name__ == '__main__':
+    global config, interval
+
+    config = {}
+    interval = MIN_INTERVAL
+
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument("-c", "--config", default="config.json", help="A JSON file containing config and sport sessions parameters")
     args_cli = parser.parse_args()
 
-    config = {}
     try:
         config = json.loads(Path(args_cli.config).read_text())
     except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
         print(f"An error was raised when trying to read config file {args_cli.config} :", e)
         sys.exit(1)
-    logging.basicConfig(filename=config["logfile"], filemode='w', level=logging.DEBUG)
-    cli_logger = logging.getLogger('cli')
-    cli_logger.setLevel(logging.INFO)
-    cli_logger.addHandler(logging.StreamHandler(sys.stdout))
-
-    iteration_check(config['param_queries'])
+    setup_logging()
+    while True:
+        process()

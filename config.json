@@ -7,6 +7,7 @@
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1"
   ],
   "ns_api": "gkblmwsbmncznpljuv6g5gelu4.appsync-api.eu-west-1.amazonaws.com",
+  "max_interval": 600,
   "param_queries_default": {
     "notification": true,
     "autobooking": false,
