@@ -183,7 +183,6 @@ def iteration_check(sport_queries):
 
 def process(given_interval=None):
     global config, interval
-    print("given : ", given_interval)
 
     max_interval = max(MIN_INTERVAL+5, config['max_interval'])
     wait_next_hour, to_wait = close_to_new_hour(max_interval)
