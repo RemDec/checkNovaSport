@@ -12,7 +12,7 @@ script = """\
 
 const STORAGE_KEY = "CognitoIdentityServiceProvider.68majga0ulte4tt8tmpismer85.%(email)s.idToken";
 const URL = "http://localhost:%(port)s/token";
-const INTERVAL = %(interval)s * 1000;
+const INTERVAL = %(interval)s * 60 * 1000;
 
 function getAuthToken() {
   return localStorage.getItem(STORAGE_KEY);
@@ -29,12 +29,17 @@ async function postToken(tokenValue) {
   console.log(json_resp);
 }
 
-function process() {
-  const token = getAuthToken();
+function processToken() {
+  var token = getAuthToken();
   console.log('Token to POST', token);
   postToken(token);
-  setTimeout(process, INTERVAL);
+  setTimeout(() => location.reload(), INTERVAL);  // This will relaunch this whole script !
+}
+
+function process() {
+  setTimeout(processToken, 3000);  // Wait a bit to be sure token was refreshed at page reload if needed
 }
 
 process();
+
 """

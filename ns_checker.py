@@ -143,12 +143,22 @@ def book_session(session_id):
         return resp.json()['data']['bookCampusSportClass']
     except requests.exceptions.HTTPError as e:
         log_all(f"Error booking with the id {session_id} : {e}", logging.ERROR)
+        return {}
+
+def validate_booked(response_booking, sport):
+    global booked
+
+    if response_booking.get('isBooked'):
+        booked[sport] = booked.get(sport, []) + [response_booking['classId']]
+        return f"BOOKED {response_booking['classId']}"
+    return "Wasn't able to book the session"
 
 def unbook_session(session_id):
     params = {'classId': session_id}
     q = query_from_tpl(queries.UnBookCampusSportClass, params, defaults=False)
     resp = requests.post(url_post_to(), data=q, headers=form_headers())
     return json.loads(resp.text)
+
 
 def iteration_check(sport_queries):
     for sport_query in sport_queries:
@@ -166,12 +176,15 @@ def iteration_check(sport_queries):
             for session_hour, session_id in sessions_matches.items():
                 if sport_query['autobooking']:
                     log_all(f" | BOOKING : Prepare to book session of {sport} at {session_hour} (id {session_id})")
-                    result_booking = book_session(session_id)
+                    response_booking = book_session(session_id)
+                    result_booking = validate_booked(response_booking, sport)
                     log_all(f" | Result for booking at {session_hour} :", result_booking)
 
 
-def process():
+def process(given_interval=None):
     global config, interval
+    print("given : ", given_interval)
+
     max_interval = max(MIN_INTERVAL+5, config['max_interval'])
     wait_next_hour, to_wait = close_to_new_hour(max_interval)
     log_all(f"NEW ITERATION at {datetime.datetime.now()}")
@@ -179,7 +192,7 @@ def process():
         log_all(f"We will wait {to_wait}s until next hour ...")
         sleep(to_wait + 10)
     else:
-        interval = randint(MIN_INTERVAL, max_interval)
+        interval = given_interval if given_interval else randint(MIN_INTERVAL, max_interval)
         log_all(f"Wait a random amount of time : {interval}")
         sleep(interval)
     log_all(f"LAUNCH CHECKING at {datetime.datetime.now()}")
@@ -187,13 +200,16 @@ def process():
 
 
 if __name__ == '__main__':
-    global config, interval
+    global config, interval, booked
 
     config = {}
     interval = MIN_INTERVAL
+    booked = {}
 
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument("-c", "--config", default="config.json", help="A JSON file containing config and sport sessions parameters")
+    parser.add_argument("-p", "--port", type=int, default=8080, help="The port on which query the local HTTP server serving current auth token")
+    parser.add_argument("-i", "--interval", type=int, default=None, help="Give a fixed interval between checking iterations, instead of random considering max in config")
     args_cli = parser.parse_args()
 
     try:
@@ -201,6 +217,11 @@ if __name__ == '__main__':
     except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
         print(f"An error was raised when trying to read config file {args_cli.config} :", e)
         sys.exit(1)
+
     setup_logging()
-    while True:
-        process()
+
+    try:
+        while True:
+            process(args_cli.interval)
+    except KeyboardInterrupt:
+        log_all(f"Checker stopped. Managed to book following classes :\n{booked}")

@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
     parser.add_argument("-p", "--port", type=int, default=8080, help="The port to run on")
     parser.add_argument("-m", "--mail", default="YOURMAIL@mail.com", help="Userscript : the mail address used for NovaSport account")
-    parser.add_argument("-i", "--interval", type=int, default=10, help="Userscript : the interval (s) between each token POST to this server")
+    parser.add_argument("-i", "--interval", type=int, default=30, help="Userscript : the interval (minutes) between each token POST to this server")
     args_cli = parser.parse_args()
     run()
 
