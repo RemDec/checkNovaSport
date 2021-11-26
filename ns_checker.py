@@ -148,10 +148,10 @@ def book_session(session_id):
 def validate_booked(response_booking, sport):
     global booked
 
-    if response_booking.get('isBooked'):
+    if response and response_booking.get('isBooked'):
         booked[sport] = booked.get(sport, []) + [response_booking['classId']]
         return f"BOOKED {response_booking['classId']}"
-    return "Wasn't able to book the session"
+    return f"Wasn't able to book the session, maybe already booked for this sport the same day (response: {response})"
 
 def unbook_session(session_id):
     params = {'classId': session_id}
@@ -178,7 +178,7 @@ def iteration_check(sport_queries):
                     log_all(f" | BOOKING : Prepare to book session of {sport} at {session_hour} (id {session_id})")
                     response_booking = book_session(session_id)
                     result_booking = validate_booked(response_booking, sport)
-                    log_all(f" | Result for booking at {session_hour} :", result_booking)
+                    log_all(f" | Result for booking at {session_hour} : {result_booking}")
 
 
 def process(given_interval=None):
