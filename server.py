@@ -13,6 +13,7 @@ To be run on a machine the userscript retrieving the authentication token from t
 
 TOKEN_FILE = 'last_token'
 USERSCRIPT_FILE = 'NovaSportAutoCheck.user.js'
+DEFAULT_MAIL = "YOURMAIL@mail.com"
 
 class Server(BaseHTTPRequestHandler):
 
@@ -59,16 +60,23 @@ class Server(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps({'updatedToken': token}).encode('utf-8'))
 
     def _GET_userscript(self):
-        try:
-            with open(USERSCRIPT_FILE, 'rb') as fp:
-                self._set_response_200()
-                self.wfile.write(fp.read())
-        except FileNotFoundError:
+        global args_cli
+
+        def regenerate_userscript():
             with open(USERSCRIPT_FILE, 'w', encoding='utf-8') as fp:
                 rendered = userscript.script % {'email': args_cli.mail, 'port': args_cli.port, 'interval': args_cli.interval}
                 fp.write(rendered)
                 self._set_response_200(content_type='application/json')
                 self.wfile.write(rendered.encode())
+        if args_cli.mail != DEFAULT_MAIL:  # user gave a maybe new address
+            regenerate_userscript()
+        else:
+            try:
+                with open(USERSCRIPT_FILE, 'rb') as fp:
+                    self._set_response_200()
+                    self.wfile.write(fp.read())
+            except FileNotFoundError:
+                regenerate_userscript()
 
     def do_GET(self):
         route = str(self.path)
@@ -112,7 +120,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=desc)
 
     parser.add_argument("-p", "--port", type=int, default=8080, help="The port to run on")
-    parser.add_argument("-m", "--mail", default="YOURMAIL@mail.com", help="Userscript : the mail address used for NovaSport account")
+    parser.add_argument("-m", "--mail", default=DEFAULT_MAIL, help="Userscript : the mail address used for NovaSport account")
     parser.add_argument("-i", "--interval", type=int, default=30, help="Userscript : the interval (minutes) between each token POST to this server")
     args_cli = parser.parse_args()
     run()

@@ -148,7 +148,7 @@ def book_session(session_id):
 def validate_booked(response_booking, sport):
     global booked
 
-    if response and response_booking.get('isBooked'):
+    if response_booking and response_booking.get('isBooked'):
         booked[sport] = booked.get(sport, []) + [response_booking['classId']]
         return f"BOOKED {response_booking['classId']}"
     return f"Wasn't able to book the session, maybe already booked for this sport the same day (response: {response})"
